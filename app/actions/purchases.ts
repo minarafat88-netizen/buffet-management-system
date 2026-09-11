@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { logAction } from '@/services/logger';
 import { cookies } from 'next/headers';
 import { calculateBoxProfit, calculateUnitPrices, roundCurrency } from '@/services/calculations';
+import { getSessionUser } from '@/services/session';
 
 interface PurchaseItemInput {
   productId: number;
@@ -15,9 +16,8 @@ interface PurchaseItemInput {
 
 export async function createPurchaseInvoice(items: PurchaseItemInput[]) {
   try {
-    const sessionCookie = cookies().get('buffet_session_token');
-    if (!sessionCookie) throw new Error('يجب تسجيل الدخول أولاً');
-    const user = JSON.parse(sessionCookie.value);
+    const user = await getSessionUser();
+    if (!user) throw new Error('يجب تسجيل الدخول أولاً');
 
     if (!items || items.length === 0) {
       throw new Error('فشلت العملية: لا توجد أصناف في الفاتورة');

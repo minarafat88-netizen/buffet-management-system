@@ -4,10 +4,10 @@ import { dailyProfits } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
+import { getSessionUser } from '@/services/session';
 
 export default async function MonthlyProfitsPage() {
-  const sessionCookie = cookies().get('buffet_session_token');
-  const user = sessionCookie ? JSON.parse(sessionCookie.value) : null;
+  const user = await getSessionUser();
 
   if (user?.role !== 'ADMIN') {
     return <div className="p-8 text-center text-red-600 font-bold">عفواً، هذه الصفحة مخصصة لمدير النظام فقط.</div>;

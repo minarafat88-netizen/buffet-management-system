@@ -7,6 +7,7 @@ import { eq, and, sql, gte, lte } from 'drizzle-orm';
 import { logAction } from '@/services/logger';
 import { cookies } from 'next/headers';
 import { calculateNetProfit, roundCurrency } from '@/services/calculations';
+import { getSessionUser } from '@/services/session';
 
 interface DailyRevenueInput {
   date: string;
@@ -20,9 +21,8 @@ interface DailyRevenueInput {
 
 export async function upsertDailyProfits(data: DailyRevenueInput) {
   try {
-    const sessionCookie = cookies().get('buffet_session_token');
-    if (!sessionCookie) throw new Error('يجب تسجيل الدخول');
-    const user = JSON.parse(sessionCookie.value);
+    const user = await getSessionUser();
+    if (!user) throw new Error('يجب تسجيل الدخول');
 
     if (user.role !== 'ADMIN') {
       throw new Error('تسجيل وتعديل الأرباح مخصص للـ Admin فقط');

@@ -5,10 +5,10 @@ import { eq, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { createPurchaseInvoice } from '@/app/actions/purchases';
+import { getSessionUser } from '@/services/session';
 
 export default async function PurchasesPage() {
-  const sessionCookie = cookies().get('buffet_session_token');
-  const user = sessionCookie ? JSON.parse(sessionCookie.value) : null;
+  const user = await getSessionUser();
 
   // جلب الأصناف الفعالة للاختيار منها
   const activeProducts = await db.select().from(products).where(eq(products.isActive, true));

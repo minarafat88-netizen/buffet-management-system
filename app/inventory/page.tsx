@@ -5,10 +5,10 @@ import { eq, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { submitDailyInventory } from '@/app/actions/inventory';
+import { getSessionUser } from '@/services/session';
 
 export default async function InventoryPage() {
-  const sessionCookie = cookies().get('buffet_session_token');
-  const user = sessionCookie ? JSON.parse(sessionCookie.value) : null;
+  const user = await getSessionUser();
 
   // جلب كافة الأصناف الفعالة لإجراء الجرد
   const activeProducts = await db.select().from(products).where(eq(products.isActive, true));

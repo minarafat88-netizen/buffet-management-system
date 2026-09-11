@@ -5,6 +5,7 @@ import { verifyUserCredentials } from '@/services/auth';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { logAction } from '@/services/logger';
+import { createSessionToken, SESSION_COOKIE } from '@/services/session';
 
 export async function loginAction(formData: FormData) {
   const username = formData.get('username') as string;
@@ -13,8 +14,7 @@ export async function loginAction(formData: FormData) {
   try {
     const user = await verifyUserCredentials(username, password);
     
-    // إنشاء جلسة وهمية آمنة (أو استخدام JWT / NextAuth)
-    cookies().set('buffet_session_token', JSON.stringify(user), {
+    cookies().set(SESSION_COOKIE, await createSessionToken(user), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7, // أسبوع
@@ -38,6 +38,6 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function logoutAction() {
-  cookies().delete('buffet_session_token');
+  cookies().delete(SESSION_COOKIE);
   redirect('/login');
 }

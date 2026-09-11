@@ -6,10 +6,10 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { createExpense } from '@/app/actions/expenses';
 import { payInstallment, createDebtWithInstallments } from '@/app/actions/debts';
+import { getSessionUser } from '@/services/session';
 
 export default async function ExpensesPage() {
-  const sessionCookie = cookies().get('buffet_session_token');
-  const user = sessionCookie ? JSON.parse(sessionCookie.value) : null;
+  const user = await getSessionUser();
 
   // جلب المصروفات المسجلة حديثاً
   const expensesList = await db.select().from(expenses)
@@ -20,15 +20,15 @@ export default async function ExpensesPage() {
   // جلب الأقساط غير المدفوعة أو القريبة
   const activeInstallments = await db.select({
     id: installments.id,
-    amount: installments.installmentAmount,
+    amount: installments.amount,
     dueDate: installments.dueDate,
-    isPaid: installments.isPaid,
+    isPaid: sql<boolean>`${installments.status} = 'PAID'`,
     debtId: installments.debtId,
     creditorName: debts.creditorName,
   })
   .from(installments)
   .leftJoin(debts, eq(installments.debtId, debts.id))
-  .where(eq(installments.isPaid, false))
+  .where(eq(installments.status, 'PENDING'))
   .orderBy(sql`${installments.dueDate} ASC`)
   .limit(10);
 
@@ -117,7 +117,7 @@ export default async function ExpensesPage() {
                     <span className="font-bold text-amber-600 text-sm">{parseFloat(inst.amount).toFixed(2)} ج.م</span>
                     <form action={async () => {
                       'use server';
-                      await payInstallment(inst.id);
+                      await payInstallment(inst.id, inst.debtId);
                     }}>
                       <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
                         تسديد

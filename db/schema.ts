@@ -1,3 +1,4 @@
+// db/schema.ts
 import { pgTable, serial, text, timestamp, boolean, numeric, integer, jsonb } from 'drizzle-orm/pg-core';
 
 // جدول المستخدمين
@@ -55,6 +56,24 @@ export const purchaseInvoiceItems = pgTable('purchase_invoice_items', {
   itemsPerBoxAtTime: integer('items_per_box_at_time').notNull(),
 });
 
+// جدول الجرد اليومي الرئيسي
+export const inventoryCounts = pgTable('inventory_counts', {
+  id: serial('id').primaryKey(),
+  date: timestamp('date').defaultNow().notNull(),
+  totalValue: numeric('total_value', { precision: 10, scale: 2 }).notNull(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+});
+
+// تفاصيل بنود الجرد اليومي (العلب والقطع لكل صنف)
+export const inventoryItems = pgTable('inventory_items', {
+  id: serial('id').primaryKey(),
+  inventoryCountId: integer('inventory_count_id').references(() => inventoryCounts.id, { onDelete: 'cascade' }).notNull(),
+  productId: integer('product_id').references(() => products.id).notNull(),
+  fullBoxes: integer('full_boxes').notNull().default(0),
+  looseItems: integer('loose_items').notNull().default(0),
+  itemValue: numeric('item_value', { precision: 10, scale: 2 }).notNull(),
+});
+
 // جدول الأرباح اليومية
 export const dailyProfits = pgTable('daily_profits', {
   id: serial('id').primaryKey(),
@@ -87,6 +106,7 @@ export const debts = pgTable('debts', {
   creditorName: text('creditor_name').notNull(),
   phone: text('phone'),
   totalAmount: numeric('total_amount', { precision: 10, scale: 2 }).notNull(),
+  remainingAmount: numeric('remaining_amount', { precision: 10, scale: 2 }).notNull(),
   status: text('status').notNull().default('ACTIVE'), // ACTIVE / COMPLETED
   notes: text('notes'),
   deletedAt: timestamp('deleted_at'),
@@ -96,10 +116,10 @@ export const debts = pgTable('debts', {
 export const installments = pgTable('installments', {
   id: serial('id').primaryKey(),
   debtId: integer('debt_id').references(() => debts.id, { onDelete: 'cascade' }).notNull(),
-  installmentAmount: numeric('installment_amount', { precision: 10, scale: 2 }).notNull(),
+  amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
   dueDate: timestamp('due_date').notNull(),
-  isPaid: boolean('is_paid').notNull().default(false),
-  paidDate: timestamp('paid_date'),
+  status: text('status').notNull().default('PENDING'), // PENDING / PAID
+  paidAt: timestamp('paid_at'),
 });
 
 // سجل العمليات الحساسة (Audit Log)

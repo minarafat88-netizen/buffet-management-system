@@ -4,29 +4,10 @@ import { dailyProfits, products, inventoryCounts, expenses } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { neon } from '@neondatabase/serverless';
-
-export default function Page() {
-  async function create(formData: FormData) {
-    'use server';
-    // Connect to the Neon database
-    const sql = neon(`${process.env.DATABASE_URL}`);
-    const comment = formData.get('comment');
-    // Insert the comment from the form into the Postgres database
-    await sql('INSERT INTO comments (comment) VALUES ($1)', [comment]);
-  }
-
-  return (
-    <form action={create}>
-      <input type="text" placeholder="write a comment" name="comment" />
-      <button type="submit">Submit</button>
-    </form>
-  );
-}
+import { getSessionUser } from '@/services/session';
 
 export default async function DashboardPage() {
-  const sessionCookie = cookies().get('buffet_session_token');
-  const user = sessionCookie ? JSON.parse(sessionCookie.value) : null;
+  const user = await getSessionUser();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

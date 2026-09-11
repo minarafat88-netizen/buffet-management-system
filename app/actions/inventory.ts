@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { logAction } from '@/services/logger';
 import { cookies } from 'next/headers';
 import { calculateInventoryItemValue, roundCurrency } from '@/services/calculations';
+import { getSessionUser } from '@/services/session';
 
 interface InventoryItemInput {
   productId: number;
@@ -16,9 +17,8 @@ interface InventoryItemInput {
 
 export async function submitDailyInventory(items: InventoryItemInput[]) {
   try {
-    const sessionCookie = cookies().get('buffet_session_token');
-    if (!sessionCookie) throw new Error('يجب تسجيل الدخول');
-    const user = JSON.parse(sessionCookie.value);
+    const user = await getSessionUser();
+    if (!user) throw new Error('يجب تسجيل الدخول');
 
     if (!items || items.length === 0) {
       throw new Error('لا توجد أصناف للجرد');

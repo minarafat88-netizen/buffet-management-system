@@ -7,6 +7,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { logAction } from '@/services/logger';
 import { cookies } from 'next/headers';
 import { calculateNetProfit } from '@/services/calculations';
+import { getSessionUser } from '@/services/session';
 
 interface ExpenseInput {
   name: string;
@@ -19,9 +20,8 @@ interface ExpenseInput {
 
 export async function createExpense(data: ExpenseInput) {
   try {
-    const sessionCookie = cookies().get('buffet_session_token');
-    if (!sessionCookie) throw new Error('يجب تسجيل الدخول');
-    const user = JSON.parse(sessionCookie.value);
+    const user = await getSessionUser();
+    if (!user) throw new Error('يجب تسجيل الدخول');
 
     const expenseDate = data.date ? new Date(data.date) : new Date();
     // إزالة الوقت للمقارنة اليومية

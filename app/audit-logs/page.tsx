@@ -4,10 +4,10 @@ import { auditLogs, users } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
+import { getSessionUser } from '@/services/session';
 
 export default async function AuditLogsPage() {
-  const sessionCookie = cookies().get('buffet_session_token');
-  const user = sessionCookie ? JSON.parse(sessionCookie.value) : null;
+  const user = await getSessionUser();
 
   if (user?.role !== 'ADMIN') {
     return (

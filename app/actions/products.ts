@@ -6,13 +6,12 @@ import { products } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { logAction } from '@/services/logger';
 import { cookies } from 'next/headers';
+import { getSessionUser } from '@/services/session';
 
 // التحقق من صلاحية Admin
-function verifyAdminSession() {
-  const sessionCookie = cookies().get('buffet_session_token');
-  if (!sessionCookie) throw new Error('غير مسجل الدخول');
-  
-  const user = JSON.parse(sessionCookie.value);
+async function verifyAdminSession() {
+  const user = await getSessionUser();
+  if (!user) throw new Error('غير مسجل الدخول');
   if (user.role !== 'ADMIN') {
     throw new Error('عفواً، هذه العملية مخصصة للـ Admin فقط');
   }
@@ -26,7 +25,7 @@ export async function createProduct(formData: {
   sellPriceBox: number;
 }) {
   try {
-    const admin = verifyAdminSession();
+    const admin = await verifyAdminSession();
 
     const [newProduct] = await db.insert(products).values({
       name: formData.name,

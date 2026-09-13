@@ -19,14 +19,14 @@ export async function POST(request: Request) {
     const [user] = await db.select().from(users).where(eq(users.username, username));
 
     if (!user || !user.isActive) {
-      return NextResponse.json({ message: 'اسم المستخدم غير موجود أو الحساب معطل' }, { status: 401 });
+      return NextResponse.json({ message: 'بيانات الدخول غير صحيحة' }, { status: 401 });
     }
 
     // التحقق من صحة كلمة المرور المشفرة
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
-      return NextResponse.json({ message: 'كلمة المرور غير صحيحة' }, { status: 401 });
+      return NextResponse.json({ message: 'بيانات الدخول غير صحيحة' }, { status: 401 });
     }
 
     // إنشاء جلسة صالحة وتوقيعها بنفس طريقة الـ middleware

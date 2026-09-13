@@ -27,6 +27,17 @@ export async function createProduct(formData: {
   try {
     const admin = await verifyAdminSession();
 
+    if (!formData.name?.trim()) throw new Error('اسم المنتج مطلوب');
+    if (!Number.isInteger(formData.itemsPerBox) || formData.itemsPerBox <= 0) {
+      throw new Error('عدد القطع في العلبة يجب أن يكون عددًا صحيحًا أكبر من صفر');
+    }
+    if (!Number.isFinite(formData.buyPriceBox) || formData.buyPriceBox < 0) {
+      throw new Error('سعر الشراء غير صالح');
+    }
+    if (!Number.isFinite(formData.sellPriceBox) || formData.sellPriceBox < 0) {
+      throw new Error('سعر البيع غير صالح');
+    }
+
     const [newProduct] = await db.insert(products).values({
       name: formData.name,
       itemsPerBox: formData.itemsPerBox,

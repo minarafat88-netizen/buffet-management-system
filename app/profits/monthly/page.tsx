@@ -18,6 +18,10 @@ export default async function MonthlyProfitsPage() {
     monthYear: sql<string>`TO_CHAR(${dailyProfits.date}, 'YYYY-MM')`,
     totalBuffet: sql<number>`SUM(CAST(${dailyProfits.buffetProfit} AS NUMERIC))`,
     totalIceCream: sql<number>`SUM(CAST(${dailyProfits.iceCreamProfit} AS NUMERIC))`,
+    totalBilliard: sql<number>`SUM(CAST(${dailyProfits.billiardProfit} AS NUMERIC))`,
+    totalPlaystation: sql<number>`SUM(CAST(${dailyProfits.playstationProfit} AS NUMERIC))`,
+    totalBarber: sql<number>`SUM(CAST(${dailyProfits.barberProfit} AS NUMERIC))`,
+    totalOther: sql<number>`SUM(CAST(${dailyProfits.otherProfit} AS NUMERIC))`,
     totalExpenses: sql<number>`SUM(CAST(${dailyProfits.totalExpenses} AS NUMERIC))`,
     totalNet: sql<number>`SUM(CAST(${dailyProfits.netProfit} AS NUMERIC))`,
   })
@@ -44,6 +48,10 @@ export default async function MonthlyProfitsPage() {
               <th className="p-4">الشهر (السنة-الشهر)</th>
               <th className="p-4">إيرادات البوفيه</th>
               <th className="p-4">إيرادات الآيس كريم</th>
+              <th className="p-4">البلياردو</th>
+              <th className="p-4">البلايستيشن</th>
+              <th className="p-4">الحلاق</th>
+              <th className="p-4">أخرى</th>
               <th className="p-4">إجمالي المصروفات</th>
               <th className="p-4">صافي الربح الشهري</th>
             </tr>
@@ -54,6 +62,10 @@ export default async function MonthlyProfitsPage() {
                 <td className="p-4 font-bold text-slate-800">{row.monthYear}</td>
                 <td className="p-4">{Number(row.totalBuffet || 0).toFixed(2)} ج.م</td>
                 <td className="p-4">{Number(row.totalIceCream || 0).toFixed(2)} ج.م</td>
+                <td className="p-4">{Number(row.totalBilliard || 0).toFixed(2)} ج.م</td>
+                <td className="p-4">{Number(row.totalPlaystation || 0).toFixed(2)} ج.م</td>
+                <td className="p-4">{Number(row.totalBarber || 0).toFixed(2)} ج.م</td>
+                <td className="p-4">{Number(row.totalOther || 0).toFixed(2)} ج.م</td>
                 <td className="p-4 text-red-500">{Number(row.totalExpenses || 0).toFixed(2)} ج.م</td>
                 <td className="p-4 font-bold text-emerald-600">{Number(row.totalNet || 0).toFixed(2)} ج.م</td>
               </tr>

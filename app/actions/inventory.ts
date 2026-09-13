@@ -24,11 +24,24 @@ export async function submitDailyInventory(items: InventoryItemInput[]) {
       throw new Error('لا توجد أصناف للجرد');
     }
 
+    if (items.some((item) =>
+      !Number.isInteger(item.productId) ||
+      !Number.isInteger(item.fullBoxes) || item.fullBoxes < 0 ||
+      !Number.isInteger(item.looseItems) || item.looseItems < 0
+    )) {
+      throw new Error('كميات الجرد يجب أن تكون أعدادًا صحيحة غير سالبة');
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     let totalInventoryValue = 0;
-    const processedItems: any[] = [];
+    const processedItems: Array<{
+      productId: number;
+      fullBoxes: number;
+      looseItems: number;
+      itemValue: string;
+    }> = [];
 
     for (const item of items) {
       const [product] = await db.select().from(products).where(eq(products.id, item.productId)).limit(1);
@@ -52,9 +65,9 @@ export async function submitDailyInventory(items: InventoryItemInput[]) {
 
       processedItems.push({
         productId: product.id,
-        fullBoxesCount: item.fullBoxes,
-        looseItemsCount: item.looseItems,
-        calculatedValue: itemValue.toString(),
+        fullBoxes: item.fullBoxes,
+        looseItems: item.looseItems,
+        itemValue: itemValue.toString(),
       });
     }
 
@@ -71,7 +84,7 @@ export async function submitDailyInventory(items: InventoryItemInput[]) {
       // حفظ تفاصيل الأصناف المجردة
       for (const row of processedItems) {
         await tx.insert(inventoryItems).values({
-          inventoryId: newCount.id,
+          inventoryCountId: newCount.id,
           ...row,
         });
       }

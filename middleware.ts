@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SESSION_COOKIE, verifySessionToken } from '@/services/session';
+import { SESSION_COOKIE, getSessionUserFromToken } from '@/services/session';
 
 export async function middleware(request: NextRequest) {
   const sessionToken = request.cookies.get(SESSION_COOKIE)?.value;
-  const sessionUser = await verifySessionToken(sessionToken);
+  const sessionUser = await getSessionUserFromToken(sessionToken);
   const path = request.nextUrl.pathname;
 
   if (!sessionUser) {

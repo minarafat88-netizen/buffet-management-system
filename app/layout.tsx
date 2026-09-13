@@ -1,5 +1,7 @@
 import './globals.css';
 import { Cairo } from 'next/font/google';
+import { getSessionUser } from '@/services/session';
+import { AppShell } from '@/components/layout/AppShell';
 
 const cairo = Cairo({ 
   subsets: ['arabic'],
@@ -12,15 +14,17 @@ export const metadata = {
   description: 'نظام احترافي لإدارة البوفيه والمخزون والحسابات',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user = await getSessionUser();
+
   return (
     <html lang="ar" dir="rtl" className={cairo.className}>
-      <body className="bg-slate-50 text-slate-900 antialiased min-h-screen flex flex-col">
-        <main className="flex-1 flex flex-col">{children}</main>
+      <body className="bg-[#f5f7fa] text-[#1f2937] antialiased min-h-screen flex flex-col">
+        <AppShell user={user}>{children}</AppShell>
       </body>
     </html>
   );

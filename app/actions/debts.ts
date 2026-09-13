@@ -3,7 +3,7 @@
 
 import { db } from '@/db';
 import { debts, installments, auditLogs } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getSessionUser } from '@/services/session';
@@ -29,39 +29,45 @@ export async function createDebtWithInstallments(data: {
   try {
     const admin = await getAdminUser();
 
-    // إدخال الدين الرئيسي
-    const [newDebt] = await db.insert(debts).values({
-      creditorName: data.creditorName,
-      phone: data.phone || null,
-      totalAmount: data.totalAmount.toString(),
-      remainingAmount: data.totalAmount.toString(),
-      notes: data.notes || null,
-      status: 'ACTIVE',
-    }).returning();
-
-    // توليد وجدولة الأقساط تلقائياً بناءً على التاريخ والقيمة
-    const baseDate = new Date(data.firstDueDate);
-    
-    for (let i = 1; i <= data.installmentsCount; i++) {
-      // حساب تاريخ الاستحقاق لكل قسط (إضافة شهور متتالية)
-      const dueDate = new Date(baseDate);
-      dueDate.setMonth(dueDate.getMonth() + (i - 1));
-
-      await db.insert(installments).values({
-        debtId: newDebt.id,
-        amount: data.installmentAmount.toString(),
-        dueDate: dueDate,
-        status: 'PENDING',
-      });
+    if (!data.creditorName?.trim()) throw new Error('اسم الدائن مطلوب');
+    if (!Number.isFinite(data.totalAmount) || data.totalAmount <= 0) throw new Error('إجمالي الدين غير صالح');
+    if (!Number.isInteger(data.installmentsCount) || data.installmentsCount <= 0) throw new Error('عدد الأقساط غير صالح');
+    if (!Number.isFinite(data.installmentAmount) || data.installmentAmount <= 0) throw new Error('قيمة القسط غير صالحة');
+    if (Math.abs(data.installmentAmount * data.installmentsCount - data.totalAmount) > 0.005) {
+      throw new Error('يجب أن يساوي مجموع الأقساط إجمالي الدين');
     }
+    const baseDate = new Date(data.firstDueDate);
+    if (Number.isNaN(baseDate.getTime())) throw new Error('تاريخ أول قسط غير صالح');
 
-    // تسجيل العملية في Audit Log للرقابة
-    await db.insert(auditLogs).values({
-      userId: admin.id,
-      action: 'CREATE_DEBT',
-      tableName: 'debts',
-      recordId: newDebt.id,
-      newValues: { creditorName: data.creditorName, totalAmount: data.totalAmount, installmentsCount: data.installmentsCount },
+    const newDebt = await db.transaction(async (tx) => {
+      const [createdDebt] = await tx.insert(debts).values({
+        creditorName: data.creditorName.trim(),
+        phone: data.phone || null,
+        totalAmount: data.totalAmount.toString(),
+        remainingAmount: data.totalAmount.toString(),
+        notes: data.notes || null,
+        status: 'ACTIVE',
+      }).returning();
+
+      for (let i = 1; i <= data.installmentsCount; i++) {
+        const dueDate = new Date(baseDate);
+        dueDate.setMonth(dueDate.getMonth() + (i - 1));
+        await tx.insert(installments).values({
+          debtId: createdDebt.id,
+          amount: data.installmentAmount.toString(),
+          dueDate,
+          status: 'PENDING',
+        });
+      }
+
+      await tx.insert(auditLogs).values({
+        userId: admin.id,
+        action: 'CREATE_DEBT',
+        tableName: 'debts',
+        recordId: createdDebt.id,
+        newValues: { creditorName: data.creditorName, totalAmount: data.totalAmount, installmentsCount: data.installmentsCount },
+      });
+      return createdDebt;
     });
 
     revalidatePath('/debts');
@@ -77,35 +83,34 @@ export async function payInstallment(installmentId: number, debtId: number) {
   try {
     const admin = await getAdminUser();
 
-    // تحديث حالة القسط إلى مدفوع
-    await db.update(installments)
-      .set({ status: 'PAID', paidAt: new Date() })
-      .where(eq(installments.id, installmentId));
+    if (!Number.isInteger(installmentId) || !Number.isInteger(debtId)) throw new Error('معرف القسط أو الدين غير صالح');
 
-    // جلب القسط لمعرفة قيمته وتحديث إجمالي المتبقي في الدين
-    const [inst] = await db.select().from(installments).where(eq(installments.id, installmentId));
-    const [debt] = await db.select().from(debts).where(eq(debts.id, debtId));
+    await db.transaction(async (tx) => {
+      const [inst] = await tx.select().from(installments).where(
+        and(eq(installments.id, installmentId), eq(installments.debtId, debtId), eq(installments.status, 'PENDING'))
+      ).limit(1);
+      const [debt] = await tx.select().from(debts).where(eq(debts.id, debtId)).limit(1);
+      if (!inst || !debt) throw new Error('القسط غير موجود أو تمت تسويته مسبقًا');
 
-    if (debt && inst) {
-      const currentRemaining = parseFloat(debt.remainingAmount);
-      const paidAmount = parseFloat(inst.amount);
-      const newRemaining = Math.max(0, currentRemaining - paidAmount);
+      const [paidInstallment] = await tx.update(installments)
+        .set({ status: 'PAID', paidAt: new Date() })
+        .where(and(eq(installments.id, installmentId), eq(installments.status, 'PENDING')))
+        .returning();
+      if (!paidInstallment) throw new Error('تعذر تسجيل السداد، حاول مرة أخرى');
 
-      await db.update(debts)
-        .set({ 
-          remainingAmount: newRemaining.toString(),
-          status: newRemaining === 0 ? 'COMPLETED' : 'ACTIVE',
-        })
-        .where(eq(debts.id, debtId));
-    }
+      const newRemaining = Math.max(0, parseFloat(debt.remainingAmount) - parseFloat(inst.amount));
+      await tx.update(debts).set({
+        remainingAmount: newRemaining.toString(),
+        status: newRemaining === 0 ? 'COMPLETED' : 'ACTIVE',
+      }).where(eq(debts.id, debtId));
 
-    // تسجيل العملية في الـ Audit Log
-    await db.insert(auditLogs).values({
-      userId: admin.id,
-      action: 'PAY_INSTALLMENT',
-      tableName: 'installments',
-      recordId: installmentId,
-      newValues: { debtId, status: 'PAID' },
+      await tx.insert(auditLogs).values({
+        userId: admin.id,
+        action: 'PAY_INSTALLMENT',
+        tableName: 'installments',
+        recordId: installmentId,
+        newValues: { debtId, status: 'PAID' },
+      });
     });
 
     revalidatePath('/debts');

@@ -1,4 +1,7 @@
 import { cookies } from 'next/headers';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { users } from '@/db/schema';
 
 export interface SessionUser {
   id: number;
@@ -74,8 +77,22 @@ export async function verifySessionToken(token?: string): Promise<SessionUser | 
   }
 }
 
+export async function getSessionUserFromToken(token?: string) {
+  const tokenUser = await verifySessionToken(token);
+  if (!tokenUser) return null;
+
+  const [currentUser] = await db
+    .select({ id: users.id, username: users.username, role: users.role, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.id, tokenUser.id))
+    .limit(1);
+
+  if (!currentUser?.isActive) return null;
+  return { id: currentUser.id, username: currentUser.username, role: currentUser.role };
+}
+
 export async function getSessionUser() {
-  return verifySessionToken(cookies().get(SESSION_COOKIE)?.value);
+  return getSessionUserFromToken(cookies().get(SESSION_COOKIE)?.value);
 }
 
 export { SESSION_COOKIE };

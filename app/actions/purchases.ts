@@ -23,8 +23,12 @@ export async function createPurchaseInvoice(items: PurchaseItemInput[]) {
       throw new Error('فشلت العملية: لا توجد أصناف في الفاتورة');
     }
 
+    if (items.some((item) => !Number.isInteger(item.productId) || !Number.isInteger(item.quantity) || item.quantity <= 0)) {
+      throw new Error('كميات الفاتورة يجب أن تكون أعدادًا صحيحة أكبر من صفر');
+    }
+
     // توليد رقم فاتورة فريد بناءً على الوقت الحالي
-    const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
+    const invoiceNumber = `INV-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 
     let totalInvoiceAmount = 0;
     const invoiceItemsData: any[] = [];

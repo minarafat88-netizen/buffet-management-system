@@ -3,10 +3,9 @@
 
 import { db } from '@/db';
 import { expenses, dailyProfits } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, gte, lt, sql } from 'drizzle-orm';
 import { logAction } from '@/services/logger';
 import { cookies } from 'next/headers';
-import { calculateNetProfit } from '@/services/calculations';
 import { getSessionUser } from '@/services/session';
 
 interface ExpenseInput {
@@ -22,10 +21,19 @@ export async function createExpense(data: ExpenseInput) {
   try {
     const user = await getSessionUser();
     if (!user) throw new Error('يجب تسجيل الدخول');
+    if (!data.name?.trim() || !data.category?.trim() || !data.paymentMethod?.trim()) {
+      throw new Error('بيانات المصروف الأساسية مطلوبة');
+    }
+    if (!Number.isFinite(data.amount) || data.amount <= 0) {
+      throw new Error('قيمة المصروف يجب أن تكون أكبر من صفر');
+    }
 
     const expenseDate = data.date ? new Date(data.date) : new Date();
+    if (Number.isNaN(expenseDate.getTime())) throw new Error('تاريخ المصروف غير صالح');
     // إزالة الوقت للمقارنة اليومية
     expenseDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(expenseDate);
+    nextDay.setDate(nextDay.getDate() + 1);
 
     const result = await db.transaction(async (tx) => {
       // 1. إدخال المصروف
@@ -39,24 +47,20 @@ export async function createExpense(data: ExpenseInput) {
       }).returning();
 
       // 2. تحديث إجمالي المصروفات وصافي الربح في جدول الأرباح اليومية لنفس اليوم إن وجد
-      const [existingProfitRecord] = await tx.select().from(dailyProfits).where(eq(dailyProfits.date, expenseDate)).limit(1);
+      const [existingProfitRecord] = await tx.select().from(dailyProfits).where(
+        and(gte(dailyProfits.date, expenseDate), lt(dailyProfits.date, nextDay))
+      ).limit(1);
 
       if (existingProfitRecord) {
-        const currentExpenses = parseFloat(existingProfitRecord.totalExpenses) + data.amount;
-        const totalRevenue = 
-          parseFloat(existingProfitRecord.buffetProfit) +
-          parseFloat(existingProfitRecord.iceCreamProfit) +
-          parseFloat(existingProfitRecord.billiardProfit) +
-          parseFloat(existingProfitRecord.playstationProfit) +
-          parseFloat(existingProfitRecord.barberProfit) +
-          parseFloat(existingProfitRecord.otherProfit);
-
-        const newNetProfit = calculateNetProfit(totalRevenue, currentExpenses);
-
         await tx.update(dailyProfits)
           .set({
-            totalExpenses: currentExpenses.toString(),
-            netProfit: newNetProfit.toString(),
+            totalExpenses: sql`${dailyProfits.totalExpenses} + ${data.amount}`,
+            netProfit: sql`ROUND(
+              ${dailyProfits.buffetProfit} + ${dailyProfits.iceCreamProfit} +
+              ${dailyProfits.billiardProfit} + ${dailyProfits.playstationProfit} +
+              ${dailyProfits.barberProfit} + ${dailyProfits.otherProfit} -
+              (${dailyProfits.totalExpenses} + ${data.amount}), 2
+            )`,
           })
           .where(eq(dailyProfits.id, existingProfitRecord.id));
       }

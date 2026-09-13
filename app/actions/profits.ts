@@ -3,7 +3,7 @@
 
 import { db } from '@/db';
 import { dailyProfits, expenses } from '@/db/schema';
-import { eq, and, sql, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, gte, lt } from 'drizzle-orm';
 import { logAction } from '@/services/logger';
 import { cookies } from 'next/headers';
 import { calculateNetProfit, roundCurrency } from '@/services/calculations';
@@ -29,7 +29,15 @@ export async function upsertDailyProfits(data: DailyRevenueInput) {
     }
 
     const profitDate = new Date(data.date);
+    if (Number.isNaN(profitDate.getTime())) throw new Error('تاريخ الأرباح غير صالح');
     profitDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(profitDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const revenueValues = [data.buffetProfit, data.iceCreamProfit, data.billiardProfit, data.playstationProfit, data.barberProfit, data.otherProfit];
+    if (revenueValues.some((value) => !Number.isFinite(value) || value < 0)) {
+      throw new Error('قيم الأرباح يجب أن تكون أرقامًا غير سالبة');
+    }
 
     // حساب إجمالي الإيرادات
     const totalRevenue = roundCurrency(
@@ -44,7 +52,8 @@ export async function upsertDailyProfits(data: DailyRevenueInput) {
     // جلب المصروفات المسجلة لنفس اليوم تلقائياً
     const dayExpensesList = await db.select().from(expenses).where(
       and(
-        eq(expenses.date, profitDate),
+        gte(expenses.date, profitDate),
+        lt(expenses.date, nextDay),
         sql`${expenses.deletedAt} IS NULL`
       )
     );
@@ -56,7 +65,9 @@ export async function upsertDailyProfits(data: DailyRevenueInput) {
     const netProfit = calculateNetProfit(totalRevenue, totalExpenses);
 
     // التحقق هل يوجد سجل سابق لنفس اليوم لتحديثه أو إضافته
-    const [existingRecord] = await db.select().from(dailyProfits).where(eq(dailyProfits.date, profitDate)).limit(1);
+    const [existingRecord] = await db.select().from(dailyProfits).where(
+      and(gte(dailyProfits.date, profitDate), lt(dailyProfits.date, nextDay))
+    ).limit(1);
 
     let result;
     if (existingRecord) {
